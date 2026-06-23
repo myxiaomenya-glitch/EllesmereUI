@@ -125,6 +125,7 @@ local ICON_ALPHA        = 0.4
 local ICON_HOVER_ALPHA  = 0.9
 local RESIZE_ICON       = "Interface\\AddOns\\EllesmereUI\\media\\icons\\resize_element.png"
 local MAX_WINDOWS       = 5
+local L = _G.EllesmereUI.L
 
 local DM_TYPE_NAMES = {
     [Enum.DamageMeterType.DamageDone]           = "Damage Done",
@@ -192,6 +193,7 @@ local DM_DEFAULTS = {
             showClassColor  = true,
             showPinnedSelf  = false,
             showHoverTooltip = true,
+            showSpellTooltips = true,  -- game spell tooltip on breakdown-row hover
             breakdownAnchorPoint = "row", -- "row" (Above Row) | "center" (Center of Screen)
             breakdownBarTexture = "match",
             barColorUseAccent = true,
@@ -794,15 +796,21 @@ end
 --  Number formatting
 -------------------------------------------------------------------------------
 local _abbreviateCfg
+-- East Asian clients group large numbers by ten-thousands (wan) and
+-- hundred-millions (yi) rather than K/M/B. Simplified and Traditional Chinese
+-- share the math and the thousands glyph; only the wan/yi glyphs differ.
+local CJK = ({
+    zhCN = { thousand = "千", wan = "万", yi = "亿" },
+    zhTW = { thousand = "千", wan = "萬", yi = "億" },
+})[GetLocale()]
 do
     local opts
-    local locale = GetLocale()
-    if locale == "zhCN" then
+    if CJK then
         opts = {
-            { breakpoint = 100000000, abbreviation = "亿", significandDivisor = 1000000,  fractionDivisor = 100, abbreviationIsGlobal = false }, 
-            { breakpoint = 10000,     abbreviation = "万", significandDivisor = 100,      fractionDivisor = 100, abbreviationIsGlobal = false }, 
-            { breakpoint = 1000,      abbreviation = "千", significandDivisor = 100,      fractionDivisor = 10,  abbreviationIsGlobal = false }, 
-            { breakpoint = 1,         abbreviation = "",   significandDivisor = 1,        fractionDivisor = 1,   abbreviationIsGlobal = false }, 
+            { breakpoint = 100000000, abbreviation = CJK.yi,       significandDivisor = 1000000, fractionDivisor = 100, abbreviationIsGlobal = false },
+            { breakpoint = 10000,     abbreviation = CJK.wan,      significandDivisor = 100,      fractionDivisor = 100, abbreviationIsGlobal = false },
+            { breakpoint = 1000,      abbreviation = CJK.thousand, significandDivisor = 100,      fractionDivisor = 10,  abbreviationIsGlobal = false },
+            { breakpoint = 1,         abbreviation = "",           significandDivisor = 1,        fractionDivisor = 1,   abbreviationIsGlobal = false },
         }
     else
         opts = {
@@ -822,24 +830,19 @@ local function AbbrevNumber(n)
     if AbbreviateNumbers then
         return AbbreviateNumbers(n, _abbreviateCfg) or "0"
     end
-    
     local num = tonumber(n)
     if not num then return "?" end
-    
-    local locale = GetLocale()
-    if locale == "zhCN" then
-        if num >= 1e8 then return format("%.2f亿", num / 1e8)
-        elseif num >= 1e4 then return format("%.2f万", num / 1e4)
-        elseif num >= 1e3 then return format("%.1f千", num / 1e3)
-        else return format("%.0f", num) end
-    else
-        if num >= 1e9 then return format("%.1fB", num / 1e9)
-        elseif num >= 1e6 then return format("%.1fM", num / 1e6)
-        elseif num >= 1e3 then return format("%.1fK", num / 1e3)
+    if CJK then
+        if num >= 1e8 then return format("%.2f%s", num / 1e8, CJK.yi)
+        elseif num >= 1e4 then return format("%.2f%s", num / 1e4, CJK.wan)
+        elseif num >= 1e3 then return format("%.1f%s", num / 1e3, CJK.thousand)
         else return format("%.0f", num) end
     end
+    if num >= 1e9 then return format("%.1fB", num / 1e9)
+    elseif num >= 1e6 then return format("%.1fM", num / 1e6)
+    elseif num >= 1e3 then return format("%.1fK", num / 1e3)
+    else return format("%.0f", num) end
 end
-
 
 local function FormatBarValue(amt, perSec, numFmt)
     -- Per-second can drop below 1 on long overall windows (total / huge time),
@@ -1380,7 +1383,7 @@ local function PopulatePreview(bar, curSession, curSessionID, curDMType)
     end
     if not srcData or not srcData.combatSpells or #srcData.combatSpells == 0 then return false end
 
-    ApplyTTHeader(StripRealm(bar._src.name) or "Unknown", DM_TYPE_NAMES[curDMType] or "Damage Done")
+    ApplyTTHeader(StripRealm(bar._src.name) or "Unknown", L(DM_TYPE_NAMES[curDMType] or "Damage Done"))
 
     wipe(_ttSorted)
     for _, spell in ipairs(srcData.combatSpells) do
@@ -1928,7 +1931,7 @@ local function CreateDMWindow(winIdx)
                 EnsureTooltipFrame()
                 -- Show header with player name + type
                 local playerName = StripRealm(bar._src and bar._src.name) or "Unknown"
-                local typeName = DM_TYPE_NAMES[W.curDMType] or "Damage Done"
+                local typeName = L(DM_TYPE_NAMES[W.curDMType] or "Damage Done")
                 _ttFrame._hdrText:SetText(playerName .. "'s " .. typeName .. " Breakdown")
                 local cfg2 = DB()
                 local hc = cfg2.hdrBgColor; local hR = hc and hc.r or 0x1B/255; local hG = hc and hc.g or 0x1B/255; local hB = hc and hc.b or 0x1B/255
@@ -1962,6 +1965,34 @@ local function CreateDMWindow(winIdx)
         return bar
     end
 
+    -- Spell tooltip on breakdown-row hover. Shows the REAL game spell tooltip
+    -- (full native info: cooldown, range, cast time, description, etc.) -- the
+    -- only way to get that is the shared GameTooltip. This is a deliberate
+    -- exception to the usual EllesmereUI-tooltip rule: that rule exists to avoid
+    -- taint in SECURE / chat-frame contexts, and these breakdown rows are our
+    -- own non-secure, addon-created frames, so the standard SetOwner +
+    -- SetSpellByID + Show sequence is safe here.
+    --
+    -- Anchored to the LEFT of the bar via ANCHOR_NONE + manual SetPoint.
+    -- Guards: bar._spellID is a clean numeric spellID on spell rows (nil on
+    -- player/target rows); secret-value + valid-spell checks keep it safe in
+    -- any context (and ShowWidgetTooltip's combat suppression no longer applies,
+    -- so the guards do the work).
+    local function ShowSpellRowTooltip(anchor, spellID)
+        if not spellID or type(spellID) ~= "number" then return end
+        local cfg = DB()
+        if cfg and cfg.showSpellTooltips == false then return end
+        if issecretvalue and issecretvalue(spellID) then return end
+        -- Only show for a real, resolvable spell.
+        local name = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spellID)
+        if not name or (issecretvalue and issecretvalue(name)) then return end
+        GameTooltip:SetOwner(anchor, "ANCHOR_NONE")
+        GameTooltip:ClearAllPoints()
+        GameTooltip:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 0)
+        GameTooltip:SetSpellByID(spellID)
+        GameTooltip:Show()
+    end
+
     local function MakeSpellRow(parent)
         local bar = {}
         bar.row = CreateFrame("Button", nil, parent); bar.row:SetHeight(18); bar.row:EnableMouse(true); bar.row:RegisterForClicks("AnyUp")
@@ -1972,6 +2003,8 @@ local function CreateDMWindow(winIdx)
         bar.label:SetWordWrap(false)
         bar.amount = tf:CreateFontString(nil, "OVERLAY"); bar.amount:SetPoint("RIGHT", tf, "RIGHT", -3, 0); bar.amount:SetJustifyH("RIGHT"); SetDMFont(bar.amount, 11)
         bar.row:SetScript("OnClick", function() W.CloseSource() end)
+        bar.row:SetScript("OnEnter", function(self) ShowSpellRowTooltip(self, bar._spellID) end)
+        bar.row:SetScript("OnLeave", function() GameTooltip:Hide() end)
         bar._spellID = nil; bar.row:Hide()
         return bar
     end
@@ -2021,8 +2054,8 @@ local function CreateDMWindow(winIdx)
         else local tc = cfg.hdrTextColor; tR = tc and tc.r or 1; tG = tc and tc.g or 1; tB = tc and tc.b or 1 end
         W.titleText:SetTextColor(tR, tG, tB, 1)
     end
-    W._fullTitle = "Damage Done"
-    W.titleText:SetText("Damage Done")
+    W._fullTitle = L("Damage Done")
+    W.titleText:SetText(L("Damage Done"))
 
     W.timerText = header:CreateFontString(nil, "OVERLAY"); SetDMFont(W.timerText, hdrFS)
     W.timerText:SetTextColor(1, 1, 1, 0.7); W.timerText:SetPoint("LEFT", W.titleText, "RIGHT", 4, 0); W.timerText:SetText("(0:00)")
@@ -2090,17 +2123,17 @@ local function CreateDMWindow(winIdx)
                      onClick = function() wdb.mythicStartDMType = dmType end }
         end
         local mStartChildren = {
-            { text = "Off", isActive = (not wdb.mythicStartDMType),
+            { text = L("Off"), isActive = (not wdb.mythicStartDMType),
               onClick = function() wdb.mythicStartDMType = false end },
             "---",
-            mStartEntry("Damage Done", Enum.DamageMeterType.DamageDone),
-            mStartEntry("Healing", Enum.DamageMeterType.HealingDone),
-            mStartEntry("Damage Taken", Enum.DamageMeterType.DamageTaken),
-            mStartEntry("Avoidable Damage Taken", Enum.DamageMeterType.AvoidableDamageTaken),
-            mStartEntry("Enemy Damage Taken", Enum.DamageMeterType.EnemyDamageTaken),
-            mStartEntry("Interrupts", Enum.DamageMeterType.Interrupts),
-            mStartEntry("Dispels", Enum.DamageMeterType.Dispels),
-            mStartEntry("Deaths", Enum.DamageMeterType.Deaths),
+            mStartEntry(L("Damage Done"), Enum.DamageMeterType.DamageDone),
+            mStartEntry(L("Healing"), Enum.DamageMeterType.HealingDone),
+            mStartEntry(L("Damage Taken"), Enum.DamageMeterType.DamageTaken),
+            mStartEntry(L("Avoidable Damage Taken"), Enum.DamageMeterType.AvoidableDamageTaken),
+            mStartEntry(L("Enemy Damage Taken"), Enum.DamageMeterType.EnemyDamageTaken),
+            mStartEntry(L("Interrupts"), Enum.DamageMeterType.Interrupts),
+            mStartEntry(L("Dispels"), Enum.DamageMeterType.Dispels),
+            mStartEntry(L("Deaths"), Enum.DamageMeterType.Deaths),
         }
         ShowEDMMenu({
             { text = "Hide in Dungeons", isActive = wdb.hideInDungeon, onClick = function()
@@ -2179,7 +2212,7 @@ local function CreateDMWindow(winIdx)
         items[#items + 1] = "---"
         for _, sType in ipairs(SESSION_TYPES) do
             items[#items + 1] = {
-                text = SESSION_TYPE_NAMES[sType] or "Unknown",
+                text = L(SESSION_TYPE_NAMES[sType] or "Unknown"),
                 isActive = (not W.curSessionID and sType == W.curSession),
                 onClick = function() W.curSession = sType; wdb.curSession = sType; W.curSessionID = nil; W.CloseSource(); W.Refresh() end,
             }
@@ -2205,13 +2238,13 @@ local function CreateDMWindow(winIdx)
         local dmActive = (cur == Enum.DamageMeterType.DamageDone or cur == Enum.DamageMeterType.DamageTaken or cur == Enum.DamageMeterType.AvoidableDamageTaken or cur == Enum.DamageMeterType.EnemyDamageTaken)
         local actActive = (cur == Enum.DamageMeterType.Interrupts or cur == Enum.DamageMeterType.Dispels or cur == Enum.DamageMeterType.Deaths)
         ShowEDMMenu({
-            { text = "Damage", isActive = dmActive, children = {
-                entry("Damage Done", Enum.DamageMeterType.DamageDone), entry("Damage Taken", Enum.DamageMeterType.DamageTaken),
-                entry("Avoidable Damage Taken", Enum.DamageMeterType.AvoidableDamageTaken), entry("Enemy Damage Taken", Enum.DamageMeterType.EnemyDamageTaken),
+            { text = L("Damage"), isActive = dmActive, children = {
+                entry(L("Damage Done"), Enum.DamageMeterType.DamageDone), entry(L("Damage Taken"), Enum.DamageMeterType.DamageTaken),
+                entry(L("Avoidable Damage Taken"), Enum.DamageMeterType.AvoidableDamageTaken), entry(L("Enemy Damage Taken"), Enum.DamageMeterType.EnemyDamageTaken),
             }},
-            entry("Healing", Enum.DamageMeterType.HealingDone),
-            { text = "Actions", isActive = actActive, children = {
-                entry("Interrupts", Enum.DamageMeterType.Interrupts), entry("Dispels", Enum.DamageMeterType.Dispels), entry("Deaths", Enum.DamageMeterType.Deaths),
+            entry(L("Healing"), Enum.DamageMeterType.HealingDone),
+            { text = L("Actions"), isActive = actActive, children = {
+                entry(L("Interrupts"), Enum.DamageMeterType.Interrupts), entry(L("Dispels"), Enum.DamageMeterType.Dispels), entry(L("Deaths"), Enum.DamageMeterType.Deaths),
             }},
         }, W.modeBtn)
     end)
@@ -2221,7 +2254,7 @@ local function CreateDMWindow(winIdx)
 
     -- + (new window) or x (close window) button, left of mode icon
     local winActionIcon = (winIdx == 1) and (MEDIA .. "dm_open.png") or (MEDIA .. "dm_close.png")
-    local winActionTip = (winIdx == 1) and "New Window" or "Close Window"
+    local winActionTip = (winIdx == 1) and L("New Window") or L("Close Window")
     W.winActionBtn = MakeHeaderBtn("dm_settings.png", -(btnSize * 4 + btnPad * 5 + 2), winActionTip, function()
         if winIdx ~= 1 and W.windowLocked then return end
         if winIdx == 1 then
@@ -3266,7 +3299,7 @@ local function CreateDMWindow(winIdx)
             W.timerText:SetText("")
         end
         local titlePrefix = isOverall and "Overall " or ""
-        W._fullTitle = titlePrefix .. (DM_TYPE_NAMES[W.curDMType] or "Damage Done")
+        W._fullTitle = L(titlePrefix .. (DM_TYPE_NAMES[W.curDMType] or "Damage Done"))
         W.FitTitle()
         if winIdx == 1 then UpdateSATimerText() end
 
