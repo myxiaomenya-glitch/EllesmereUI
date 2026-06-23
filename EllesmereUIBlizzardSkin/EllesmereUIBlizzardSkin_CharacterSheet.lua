@@ -3067,9 +3067,9 @@ local function SkinCharacterSheet()
     local newSetBtn = MakeTextLink(linksRow, L("New"), function()
         if InCombatLockdown() then return end
         StaticPopupDialogs["EUI_NEW_EQUIPMENT_SET"] = {
-            text = "New equipment set name:",
-            button1 = "Create",
-            button2 = "Cancel",
+            text = L("New equipment set name:"),
+            button1 = L("Create"),
+            button2 = L("Cancel"),
             OnAccept = function(dialog)
                 local newName = dialog.EditBox:GetText()
                 if newName ~= "" then
@@ -3324,8 +3324,8 @@ local function SkinCharacterSheet()
                 local sid, sname = tile._setID, tile._setName
                 if not (sid and sname) then return end
                 StaticPopupDialogs["EUI_DELETE_EQUIPMENT_SET"] = {
-                    text = "Delete equipment set '" .. sname .. "'?",
-                    button1 = "Delete", button2 = "Cancel",
+                    text = string.format(L("Delete equipment set '%s'?"), sname),
+                    button1 = L("Delete"), button2 = L("Cancel"),
                     OnAccept = function()
                         C_EquipmentSet.DeleteEquipmentSet(sid)
                         RefreshEquipmentSets()
