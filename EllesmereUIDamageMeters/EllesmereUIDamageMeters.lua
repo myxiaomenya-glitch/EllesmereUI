@@ -1329,7 +1329,7 @@ local function PopulatePreview(bar, curSession, curSessionID, curDMType)
         local players = AggregateEnemyPlayers(srcData, GetBreakdownDuration(curSession, curSessionID))
         if not players then return false end
 
-        ApplyTTHeader(StripRealm(bar._src.name) or "Unknown", "Damage Taken")
+        ApplyTTHeader(StripRealm(bar._src.name) or "Unknown", L("Damage Taken"))
         local texPath, texKey = GetBreakdownBarTexturePath()
         local maxAmt = players[1].total
         local ttMax = TT_MAX()
@@ -2136,20 +2136,20 @@ local function CreateDMWindow(winIdx)
             mStartEntry(L("Deaths"), Enum.DamageMeterType.Deaths),
         }
         ShowEDMMenu({
-            { text = "Hide in Dungeons", isActive = wdb.hideInDungeon, onClick = function()
+            { text = L("Hide in Dungeons"), isActive = wdb.hideInDungeon, onClick = function()
                 wdb.hideInDungeon = not wdb.hideInDungeon
                 for _, w in ipairs(_windows) do w.UpdateVisibility() end
             end },
-            { text = "Hide in Raids", isActive = wdb.hideInRaid, onClick = function()
+            { text = L("Hide in Raids"), isActive = wdb.hideInRaid, onClick = function()
                 wdb.hideInRaid = not wdb.hideInRaid
                 for _, w in ipairs(_windows) do w.UpdateVisibility() end
             end },
-            { text = "Hide out of Instances", isActive = wdb.hideOutOfInstance, onClick = function()
+            { text = L("Hide out of Instances"), isActive = wdb.hideOutOfInstance, onClick = function()
                 wdb.hideOutOfInstance = not wdb.hideOutOfInstance
                 for _, w in ipairs(_windows) do w.UpdateVisibility() end
             end },
             "---",
-            { text = "Width", isInput = true,
+            { text = L("Width"), isInput = true,
               getValue = function() return math.floor(frame:GetWidth() + 0.5) end,
               setValue = function(v)
                   local left, top = frame:GetLeft(), frame:GetTop()
@@ -2158,7 +2158,7 @@ local function CreateDMWindow(winIdx)
                   wdb.width = math.floor(frame:GetWidth() + 0.5)
               end,
               min = MIN_W },
-            { text = "Height", isInput = true,
+            { text = L("Height"), isInput = true,
               getValue = function() return math.floor(frame:GetHeight() + 0.5) end,
               setValue = function(v)
                   local left, top = frame:GetLeft(), frame:GetTop()
@@ -2167,28 +2167,28 @@ local function CreateDMWindow(winIdx)
                   wdb.height = math.floor(frame:GetHeight() + 0.5)
               end,
               min = MIN_H },
-            { text = W.snapDisabled and "Enable Snapping" or "Disable Snapping", onClick = function()
+            { text = W.snapDisabled and L("Enable Snapping") or L("Disable Snapping"), onClick = function()
                 W.snapDisabled = not W.snapDisabled
             end },
-            { text = "Hide Timer", isActive = wdb.hideTimer, onClick = function()
+            { text = L("Hide Timer"), isActive = wdb.hideTimer, onClick = function()
                 wdb.hideTimer = not wdb.hideTimer
                 W.timerText:SetShown(not wdb.hideTimer)
             end },
-            { text = "Auto Swap Current/Overall",
-              tooltip = "Auto switch your window to overall at the end of an M+ run, and current at the start",
+            { text = L("Auto Swap Current/Overall"),
+              tooltip = L("Auto switch your window to overall at the end of an M+ run, and current at the start"),
               isActive = wdb.autoSwapMythic, onClick = function()
                 wdb.autoSwapMythic = not wdb.autoSwapMythic
             end },
-            { text = "Default on M+ Start",
-              tooltip = "Set your window to this Meter Type on dungeon start",
+            { text = L("Default on M+ Start"),
+              tooltip = L("Set your window to this Meter Type on dungeon start"),
               children = mStartChildren },
-            { text = "Settings", onClick = function()
+            { text = L("Settings"), onClick = function()
                 if EUI.ShowModule then EUI:ShowModule("EllesmereUIDamageMeters") end
             end },
         }, W.settingsBtn)
     end)
 
-    W.segmentBtn = MakeHeaderBtn("dm_sheet.png", -(btnSize + btnPad * 2 + 2), "Select Segment", function()
+    W.segmentBtn = MakeHeaderBtn("dm_sheet.png", -(btnSize + btnPad * 2 + 2), L("Select Segment"), function()
         local items = {}
         -- Segments first (top of upward menu)
         if C_DamageMeter and C_DamageMeter.GetAvailableCombatSessions then
@@ -2856,7 +2856,7 @@ local function CreateDMWindow(winIdx)
     if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(ovLabel, true) end
     ovLabel:SetFont(ovFont, 10, "")
     ovLabel:SetPoint("CENTER")
-    ovLabel:SetText("Damage Meters"); ovLabel:SetTextColor(1, 1, 1, 0.9)
+    ovLabel:SetText(L("Damage Meters")); ovLabel:SetTextColor(1, 1, 1, 0.9)
 
     -- Overlay absorbs clicks to block interaction with the window beneath.
     -- Dragging the overlay uses the same snap logic as the header drag.
@@ -3740,7 +3740,7 @@ local function CreateDMWindow(winIdx)
                 homeCards[idx] = card
             end
 
-            local label = DM_TYPE_NAMES[dmType] or "Unknown"
+            local label = L(DM_TYPE_NAMES[dmType] or "Unknown")
             local isActive = (dmType == W.curDMType)
 
             -- Position in grid
