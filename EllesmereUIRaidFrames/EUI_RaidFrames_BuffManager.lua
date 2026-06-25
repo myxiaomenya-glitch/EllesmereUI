@@ -924,7 +924,7 @@ function ns.BM_AnchorIndicators(d, health, s)
     if d.bmSimpleIcons and health and ns.db and ns.db.profile and ns.db.profile.bmDisplayMode == "simple" then
         local bs = ns.db.profile.bmSimple
         if bs then
-            local iscale = (d._isParty and ns._partyBmScale or (d._isExtra and ns._xfBmScale) or ns._bmScale) or 1
+            local iscale = (d._isParty and ns._bmScale or (d._isExtra and ns._xfBmScale) or ns._bmScale) or 1
             local sz = (bs.size or 22) * iscale
             for _, f in ipairs(d.bmSimpleIcons) do f:SetSize(sz, sz) end
             ns.BM_AnchorSimpleGrid(d, health, bs, iscale, nil)
@@ -1428,7 +1428,7 @@ function ns.BM_UpdateSimpleGrid(button, unit, db, updateInfo)
         if not needScan then return end
     end
 
-    local iscale = (d._isParty and ns._partyBmScale or (d._isExtra and ns._xfBmScale) or ns._bmScale) or 1
+    local iscale = (d._isParty and ns._bmScale or (d._isExtra and ns._xfBmScale) or ns._bmScale) or 1
     local PP = EllesmereUI.PanelPP or EllesmereUI.PP
     local sz = (bs.size or 22) * iscale
     local bdrSz = bs.borderSize or 1
@@ -1577,7 +1577,7 @@ function ns.BM_UpdateIndicators(button, unit, db, updateInfo)
     end
 
     -- Party buttons use the party scale (Auto Resize); raid buttons use theirs.
-    local iscale = (d._isParty and ns._partyBmScale or (d._isExtra and ns._xfBmScale) or ns._bmScale) or 1
+    local iscale = (d._isParty and ns._bmScale or (d._isExtra and ns._xfBmScale) or ns._bmScale) or 1
     -- Base level for the Frame Level setting (re-applied per indicator below).
     local buttonLvl = button:GetFrameLevel()
 
@@ -2401,7 +2401,7 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
     local barPool  = f._bmBarPool
     if not iconPool then return end
     -- Party preview passes the party proxy as `s`; use the party scale then.
-    local iscale = ((s == ns._scaledPartyProxy) and ns._partyBmScale or ns._bmScale) or 1
+    local iscale = ((s == ns._scaledPartyProxy) and ns._bmScale or ns._bmScale) or 1
 
     -- Hide all first (reset cooldowns so they re-apply fresh)
     for _, fr in ipairs(iconPool) do
